@@ -1,14 +1,7 @@
-/*
- * HOW DATA FLOWS
- * Props down: App passes profile, shifts, and proposedShift to the pages that need them.
- * Callbacks up: ProfilePage calls onComplete(profile), LogShiftsPage calls onAddShift(shift) and onDeleteShift(id),
- * and ShiftCheckPage calls onComplete(proposedShift), so App remains the source of saved data.
- * Router state: ShiftCheckPage sends safe, currentHours, projectedHours, and reason one time
- * to /result using navigate state; ResultPage reads that state with useLocation.
- */
-import { useEffect, useState } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
-import type { Profile, Shift, ShiftDraft } from './types'
+import { useCallback, useEffect, useState } from 'react'
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import * as api from './api'
+import type { CheckResult, Profile, Shift, ShiftDraft } from './types'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import ProfilePage from './pages/ProfilePage'
@@ -18,85 +11,102 @@ import ResultPage from './pages/ResultPage'
 
 const emptyProfile: Profile = { visaType: '', studyPeriodStart: '', studyPeriodEnd: '' }
 const emptyShift: ShiftDraft = { date: '', startTime: '', endTime: '' }
-const profileStorageKey = 'fortnight-profile'
-const shiftsStorageKey = 'fortnight-shifts'
 
-const isProfile = (value: unknown): value is Profile => typeof value === 'object' && value !== null && 'visaType' in value && 'studyPeriodStart' in value && 'studyPeriodEnd' in value && typeof value.visaType === 'string' && typeof value.studyPeriodStart === 'string' && typeof value.studyPeriodEnd === 'string'
-const isShift = (value: unknown): value is Shift => typeof value === 'object' && value !== null && 'id' in value && 'date' in value && 'startTime' in value && 'endTime' in value && 'hours' in value && typeof value.id === 'string' && typeof value.date === 'string' && typeof value.startTime === 'string' && typeof value.endTime === 'string' && typeof value.hours === 'number'
-
-const loadProfile = (): Profile => {
-  try {
-    const savedProfile = localStorage.getItem(profileStorageKey)
-    if (!savedProfile) return emptyProfile
-
-    const parsedProfile: unknown = JSON.parse(savedProfile)
-    return isProfile(parsedProfile) ? parsedProfile : emptyProfile
-  } catch {
-    return emptyProfile
-  }
+function ProtectedRoute({ authenticated, children }: { authenticated: boolean; children: React.ReactNode }) {
+  return authenticated ? children : <Navigate to="/login" replace />
 }
-
-const loadShifts = (): Shift[] => {
-  try {
-    const savedShifts = localStorage.getItem(shiftsStorageKey)
-    if (!savedShifts) return []
-
-    const parsedShifts: unknown = JSON.parse(savedShifts)
-    return Array.isArray(parsedShifts) && parsedShifts.every(isShift) ? parsedShifts : []
-  } catch {
-    return []
-  }
-}
-
-const hasProfileData = (profile: Profile) => Boolean(profile.visaType || profile.studyPeriodStart || profile.studyPeriodEnd)
 
 export default function App() {
-  const [profile, setProfile] = useState<Profile>(loadProfile)
-  const [shifts, setShifts] = useState<Shift[]>(loadShifts)
+  const navigate = useNavigate()
+  const [profile, setProfile] = useState<Profile>(emptyProfile)
+  const [shifts, setShifts] = useState<Shift[]>([])
   const [workedShiftDraft, setWorkedShiftDraft] = useState<ShiftDraft>(emptyShift)
   const [proposedShift, setProposedShift] = useState<ShiftDraft>(emptyShift)
+  const [authenticated, setAuthenticated] = useState(Boolean(api.getAccessToken()))
+  const [loadingData, setLoadingData] = useState(Boolean(api.getAccessToken()))
+  const [loadError, setLoadError] = useState('')
 
-  useEffect(() => {
-    try {
-      if (hasProfileData(profile)) {
-        localStorage.setItem(profileStorageKey, JSON.stringify(profile))
-      } else {
-        localStorage.removeItem(profileStorageKey)
-      }
-    } catch {
-      // Storage may be unavailable or full; state remains usable for this session.
-    }
-  }, [profile])
-
-  useEffect(() => {
-    try {
-      if (shifts.length > 0) {
-        localStorage.setItem(shiftsStorageKey, JSON.stringify(shifts))
-      } else {
-        localStorage.removeItem(shiftsStorageKey)
-      }
-    } catch {
-      // Storage may be unavailable or full; state remains usable for this session.
-    }
-  }, [shifts])
-
-  const clearData = () => {
+  const resetSession = useCallback((message = '') => {
+    api.clearAccessToken()
+    setAuthenticated(false)
     setProfile(emptyProfile)
     setShifts([])
+    setWorkedShiftDraft(emptyShift)
+    setProposedShift(emptyShift)
+    setLoadError(message)
+    navigate('/login', { replace: true })
+  }, [navigate])
 
+  useEffect(() => {
+    api.setUnauthorizedHandler(() => resetSession('Your session has ended. Please sign in again.'))
+    return () => api.setUnauthorizedHandler(null)
+  }, [resetSession])
+
+  const loadAccountData = useCallback(async () => {
+    if (!api.getAccessToken()) return
+    setLoadingData(true)
+    setLoadError('')
     try {
-      localStorage.removeItem(profileStorageKey)
-      localStorage.removeItem(shiftsStorageKey)
-    } catch {
-      // Storage may be unavailable; the in-memory data has still been cleared.
+      const [savedProfile, savedShifts] = await Promise.all([api.getProfile(), api.getShifts()])
+      setProfile(savedProfile ?? emptyProfile)
+      setShifts(savedShifts)
+    } catch (error) {
+      if ((error as { status?: number }).status !== 401) setLoadError(error instanceof Error ? error.message : 'Could not load your saved data.')
+    } finally {
+      setLoadingData(false)
+    }
+  }, [])
+
+  useEffect(() => { void loadAccountData() }, [loadAccountData])
+
+  const completeAuthentication = async (token: string) => {
+    api.setAccessToken(token)
+    setAuthenticated(true)
+    await loadAccountData()
+    navigate('/profile', { replace: true })
+  }
+
+  const saveCurrentProfile = async (nextProfile: Profile) => {
+    const savedProfile = await api.saveProfile(nextProfile)
+    setProfile(savedProfile)
+  }
+
+  const addShift = async (draft: ShiftDraft) => {
+    const shift = await api.createShift(draft)
+    setShifts((current) => [...current, shift])
+    setWorkedShiftDraft(emptyShift)
+  }
+
+  const removeShift = async (id: string) => {
+    await api.deleteShift(id)
+    setShifts((current) => current.filter((shift) => shift.id !== id))
+  }
+
+  const clearAllShifts = async () => {
+    await api.clearShifts()
+    setShifts([])
+    setWorkedShiftDraft(emptyShift)
+  }
+
+  const logOut = async () => {
+    try {
+      await api.logout()
+    } catch (error) {
+      if ((error as { status?: number }).status !== 401) setLoadError(error instanceof Error ? error.message : 'Could not log out.')
+    } finally {
+      resetSession()
     }
   }
 
+  const protectedPage = (page: React.ReactNode) => <ProtectedRoute authenticated={authenticated}>{page}</ProtectedRoute>
+
   return <Routes>
-    <Route path="/" element={<LandingPage />} /><Route path="/login" element={<LoginPage />} />
-    <Route path="/profile" element={<ProfilePage profile={profile} onComplete={setProfile} />} />
-    <Route path="/log-shifts" element={<LogShiftsPage shifts={shifts} draft={workedShiftDraft} onDraftChange={setWorkedShiftDraft} onAddShift={(shift) => { setShifts((current) => [...current, shift]); setWorkedShiftDraft(emptyShift) }} onDeleteShift={(id) => setShifts((current) => current.filter((shift) => shift.id !== id))} onClearData={clearData} />} />
-    <Route path="/shift-check" element={<ShiftCheckPage shifts={shifts} proposedShift={proposedShift} onComplete={setProposedShift} />} />
-    <Route path="/result" element={<ResultPage />} /><Route path="*" element={<Navigate to="/" replace />} />
+    <Route path="/" element={<LandingPage />} />
+    <Route path="/login" element={authenticated ? <Navigate to="/profile" replace /> : <LoginPage onAuthenticated={completeAuthentication} sessionError={loadError} />} />
+    <Route path="/profile" element={protectedPage(<ProfilePage profile={profile} onChange={setProfile} onSave={saveCurrentProfile} onLogout={logOut} loadingData={loadingData} loadError={loadError} />)} />
+    <Route path="/log-shifts" element={protectedPage(<LogShiftsPage shifts={shifts} draft={workedShiftDraft} onDraftChange={setWorkedShiftDraft} onAddShift={addShift} onDeleteShift={removeShift} onClearData={clearAllShifts} onLogout={logOut} />)} />
+    <Route path="/shift-check" element={protectedPage(<ShiftCheckPage proposedShift={proposedShift} onComplete={setProposedShift} onCheck={api.checkShift} onLogout={logOut} />)} />
+    <Route path="/result" element={protectedPage(<ResultPage onLogout={logOut} />)} />
+    <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>
 }

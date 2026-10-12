@@ -1,9 +1,7 @@
-import type { CheckResult, Shift, ShiftDraft } from '../types'
-export const MAX_FORTNIGHT_HOURS = 48
+import type { Shift, ShiftDraft } from '../types'
+
 const toLocalDate = (date: string) => new Date(`${date}T00:00:00`)
 const duration = (start: string, end: string) => { const [a, b] = start.split(':').map(Number); const [c, d] = end.split(':').map(Number); return (c * 60 + d - (a * 60 + b)) / 60 }
-// Sums all shifts in the inclusive range from 13 days before endDate through endDate.
+
 export function getRollingTotal(shifts: Shift[], endDate: string): number { const end = toLocalDate(endDate); const start = new Date(end); start.setDate(end.getDate() - 13); return shifts.reduce((total, shift) => { const date = toLocalDate(shift.date); return date >= start && date <= end ? total + shift.hours : total }, 0) }
-// Tests a proposed shift in its own rolling window without saving it.
-export function checkShift(shifts: Shift[], proposed: ShiftDraft): CheckResult { const currentHours = getRollingTotal(shifts, proposed.date); const projectedHours = currentHours + duration(proposed.startTime, proposed.endTime); const safe = projectedHours <= MAX_FORTNIGHT_HOURS; const total = Number(projectedHours.toFixed(2)); return { safe, currentHours: Number(currentHours.toFixed(2)), projectedHours: total, reason: safe ? `Your projected rolling 14-day total is ${total} hours, within the 48-hour limit.` : `Your projected rolling 14-day total is ${total} hours, which is ${Number((projectedHours - MAX_FORTNIGHT_HOURS).toFixed(2))} hours over the 48-hour limit.` } }
 export function getShiftDuration(draft: ShiftDraft) { return duration(draft.startTime, draft.endTime) }
