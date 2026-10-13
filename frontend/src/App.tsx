@@ -85,9 +85,11 @@ export default function App() {
 
   const addShift = async (draft: ShiftDraft) => {
     const shift = await api.createShift(draft)
+    // The shift is saved at this point, so a failed summary refresh keeps the previous total rather than failing the add
+    const summary = await api.getHomeSummary().catch(() => null)
     setShifts((current) => [...current, shift])
     setWorkedShiftDraft(emptyShift)
-    setHomeSummary(await api.getHomeSummary())
+    if (summary) setHomeSummary(summary)
   }
 
   const removeShift = async (id: string) => {
@@ -98,9 +100,10 @@ export default function App() {
 
   const clearAllShifts = async () => {
     await api.clearShifts()
+    const summary = await api.getHomeSummary().catch(() => null)
     setShifts([])
     setWorkedShiftDraft(emptyShift)
-    setHomeSummary(await api.getHomeSummary())
+    if (summary) setHomeSummary(summary)
   }
 
   const addBreak = async (draft: StudyBreakDraft) => {

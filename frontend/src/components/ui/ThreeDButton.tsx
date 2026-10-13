@@ -9,6 +9,7 @@ type ThreeDButtonProps = {
   type?: ButtonHTMLAttributes<HTMLButtonElement>['type']
   disabled?: boolean
   loading?: boolean
+  loadingLabel?: string
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
@@ -24,6 +25,7 @@ export default function ThreeDButton({
   type = 'button',
   disabled = false,
   loading = false,
+  loadingLabel,
 }: ThreeDButtonProps) {
   const unavailable = disabled || loading
   const handleClick: MouseEventHandler<HTMLButtonElement> = (event) => {
@@ -49,7 +51,7 @@ export default function ThreeDButton({
           className="size-4 animate-spin rounded-full border-2 border-current/40 border-t-current"
         />
       )}
-      {label}
+      {loading && loadingLabel ? loadingLabel : label}
     </button>
   )
 }

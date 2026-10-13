@@ -29,7 +29,7 @@ export default function StudyBreaksSection({ breaks, onAdd, onDelete }: Props) {
     {error && <p className="mt-3 text-sm text-over" role="alert">{error}</p>}
     {breaks.length > 0 && <ul className="mt-4 space-y-2">{breaks.map((period) => <li key={period.id} className="flex flex-wrap items-center justify-between gap-3 border border-dashed border-ink-300 bg-surface px-3 py-3 text-sm transition-colors duration-150 hover:border-ink-600 hover:bg-paper">
       <span className="min-w-0"><span className="block truncate font-semibold text-ink-900">{period.label || 'Study break'}</span><span className="mt-0.5 block font-mono tracking-tight text-ink-600">{formatBreakDate(period.startDate)} – {formatBreakDate(period.endDate)}</span></span>
-      <ThreeDButton label="Delete" variant="danger" loading={loadingAction === `delete-${period.id}`} onClick={() => void run(`delete-${period.id}`, () => onDelete(period.id))} />
+      <ThreeDButton label="Delete" loadingLabel="Deleting" variant="danger" loading={loadingAction === `delete-${period.id}`} onClick={() => void run(`delete-${period.id}`, () => onDelete(period.id))} />
     </li>)}</ul>}
     <div className="mt-4 border border-ink-300 bg-surface p-4 sm:p-5">
       <div className="grid gap-4 sm:grid-cols-3">
@@ -37,7 +37,7 @@ export default function StudyBreaksSection({ breaks, onAdd, onDelete }: Props) {
         <InputField label="First day" name="breakStart" type="date" value={draft.startDate} onChange={(e) => update('startDate', e.target.value)} onBlur={() => setTouched({ ...touched, startDate: true })} error={errors.startDate} touched={Boolean(touched.startDate)} required />
         <InputField label="Last day" name="breakEnd" type="date" value={draft.endDate} onChange={(e) => update('endDate', e.target.value)} onBlur={() => setTouched({ ...touched, endDate: true })} error={errors.endDate} touched={Boolean(touched.endDate)} required />
       </div>
-      <div className="mt-4"><ThreeDButton label="Add break" variant="secondary" loading={loadingAction === 'add'} onClick={() => void add()} /></div>
+      <div className="mt-4"><ThreeDButton label="Add break" loadingLabel="Saving" variant="secondary" loading={loadingAction === 'add'} onClick={() => void add()} /></div>
     </div>
   </section>
 }

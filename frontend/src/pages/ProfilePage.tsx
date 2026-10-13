@@ -35,7 +35,7 @@ export default function ProfilePage({ profile, onChange, onSave, loadingData, lo
         <InputField label="Study period starts" name="studyPeriodStart" type="date" value={profile.studyPeriodStart} onChange={(e) => update('studyPeriodStart', e.target.value)} onBlur={() => setTouched({ ...touched, studyPeriodStart: true })} error={errors.studyPeriodStart} touched={Boolean(touched.studyPeriodStart)} required helperText="Used only to know when the limit applies." />
         <InputField label="Study period ends" name="studyPeriodEnd" type="date" value={profile.studyPeriodEnd} onChange={(e) => update('studyPeriodEnd', e.target.value)} onBlur={() => setTouched({ ...touched, studyPeriodEnd: true })} error={errors.studyPeriodEnd} touched={Boolean(touched.studyPeriodEnd)} required helperText="Used only to know when the limit applies." />
       </div>
-      <div className="mt-8 w-full [&>button]:w-full"><ThreeDButton label="Continue" disabled={!valid || loadingData} loading={saving} onClick={() => void save()} /></div>
+      <div className="mt-8 w-full [&>button]:w-full"><ThreeDButton label="Continue" loadingLabel="Saving" disabled={!valid || loadingData} loading={saving} onClick={() => void save()} /></div>
     </FormSection>
   </main>
 }

@@ -7,6 +7,7 @@ type IconButtonProps = {
   type?: ButtonHTMLAttributes<HTMLButtonElement>['type']
   disabled?: boolean
   loading?: boolean
+  loadingLabel?: string
 }
 
 export default function IconButton({
@@ -15,6 +16,7 @@ export default function IconButton({
   type = 'button',
   disabled = false,
   loading = false,
+  loadingLabel,
 }: IconButtonProps) {
   const unavailable = disabled || loading
   const handleClick: MouseEventHandler<HTMLButtonElement> = (event) => {
@@ -46,7 +48,7 @@ export default function IconButton({
           strokeWidth={2}
         />
       )}
-      <span>{label}</span>
+      <span>{loading && loadingLabel ? loadingLabel : label}</span>
     </button>
   )
 }
