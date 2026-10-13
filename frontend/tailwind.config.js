@@ -24,9 +24,11 @@ export default {
       },
       keyframes: {
         rise: { from: { opacity: '0', transform: 'translateY(6px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
+        sweep: { from: { transform: 'translateX(-30%)' }, to: { transform: 'translateX(100%)' } },
       },
       animation: {
         rise: 'rise 400ms ease-out both',
+        sweep: 'sweep 12s linear infinite',
       },
       ringColor: {
         DEFAULT: '#14171C',

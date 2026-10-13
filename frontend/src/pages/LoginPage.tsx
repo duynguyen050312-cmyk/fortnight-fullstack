@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import * as api from '../api'
 import InputField from '../components/ui/InputField'
+import PersonaQuote from '../components/ui/PersonaQuote'
+import SweepStrip from '../components/ui/SweepStrip'
 import ThreeDButton from '../components/ui/ThreeDButton'
 
 type Props = { onAuthenticated: (token: string) => Promise<void>; sessionError: string }
@@ -31,8 +33,19 @@ export default function LoginPage({ onAuthenticated, sessionError }: Props) {
     }
   }
 
-  return <main className="mx-auto flex min-h-screen max-w-md items-center p-5 sm:p-8">
-    <section className="w-full border border-ink-300 bg-surface p-5 sm:p-6">
+  return <main className="min-h-screen lg:grid lg:grid-cols-2">
+    <aside className="hidden bg-paper px-12 pb-16 pt-[15vh] lg:flex lg:items-start xl:px-20">
+      <div className="max-w-lg">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-600">Fortnight</p>
+        <p className="mt-3 text-display font-bold text-ink-900">Know your hours before you say yes.</p>
+        <p className="mt-4 text-base leading-6 text-ink-600">Track your work hours against your visa limit with a rolling 14-day view.</p>
+        <PersonaQuote className="mt-8" />
+        <SweepStrip className="mt-12" />
+      </div>
+    </aside>
+    <div className="flex min-h-screen items-center justify-center p-5 sm:p-8 lg:items-start lg:bg-surface lg:px-12 lg:pb-16 lg:pt-[15vh]">
+    <div className="w-full max-w-[400px]">
+    <section className="w-full border border-ink-300 bg-surface p-5 sm:p-6 lg:border-0 lg:p-0">
       <Link to="/" className="text-sm font-semibold text-ink-900 underline decoration-ink-300 underline-offset-4">← Fortnight</Link>
       <h1 className="mt-6 text-display font-bold text-ink-900">{isSignup ? 'Create an account' : 'Welcome'}</h1>
       <p className="mt-2 text-base leading-6 text-ink-600">{isSignup ? 'Create an account to start tracking.' : 'Sign in to continue tracking.'}</p>
@@ -45,5 +58,8 @@ export default function LoginPage({ onAuthenticated, sessionError }: Props) {
       <div className="mt-8 w-full [&>button]:w-full"><ThreeDButton label={isSignup ? 'Create account' : 'Continue with email'} disabled={!valid} loading={loading} onClick={() => void submit()} /></div>
       <div className="mt-4 text-center text-sm text-ink-600"><button type="button" className="font-semibold text-ink-900 underline decoration-ink-300 underline-offset-4" onClick={() => { setIsSignup((current) => !current); setRequestError('') }}>{isSignup ? 'Already have an account? Sign in' : 'Need an account? Sign up'}</button></div>
     </section>
+    <p className="mt-8 hidden text-xs font-semibold uppercase leading-5 tracking-wide text-ink-600 lg:block">Fortnight never asks for your visa number, passport number or employer details.</p>
+    </div>
+    </div>
   </main>
 }
