@@ -1,4 +1,10 @@
 export type Profile = { visaType: string; studyPeriodStart: string; studyPeriodEnd: string }
 export type Shift = { id: string; date: string; startTime: string; endTime: string; hours: number }
 export type ShiftDraft = { date: string; startTime: string; endTime: string }
-export type CheckResult = { safe: boolean; currentHours: number; projectedHours: number; reason: string }
+export type VisaTypeOption = { label: string; limitHours: number | null }
+export type UsageStatus = 'safe' | 'tight' | 'over'
+export type DailyHours = { date: string; hours: number }
+export type FortnightWindow = { windowStart: string; windowEnd: string; dailyHours: DailyHours[] }
+export type UsageSummary = FortnightWindow & { currentHours: number; remainingHours: number | null; limitHours: number | null; status: UsageStatus; unlimited: boolean }
+export type HomeSummary = UsageSummary & { recentShifts: Shift[] }
+export type CheckResult = UsageSummary & { safe: boolean; projectedHours: number; reason: string }

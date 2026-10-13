@@ -34,7 +34,7 @@ export default function InputField({
 
   return (
     <div>
-      <label htmlFor={inputId} className="block text-sm font-medium text-slate-700">
+      <label htmlFor={inputId} className="block text-xs font-semibold uppercase tracking-wide text-ink-600">
         {label}
       </label>
       <input
@@ -47,14 +47,14 @@ export default function InputField({
         required={required}
         aria-invalid={hasError}
         aria-describedby={hasError ? errorId : helperText ? helperTextId : undefined}
-        className={`mt-1 block w-full rounded-md border px-3 py-2 shadow-sm outline-none focus:ring-1 ${hasError ? 'border-red-600 focus:border-red-600 focus:ring-red-600' : 'border-slate-300 focus:border-primary-600 focus:ring-primary-600'}`}
+        className={`mt-1 block w-full rounded border bg-surface px-3 py-3 text-base text-ink-900 outline-none transition focus:ring-1 ${hasError ? 'border-over focus:border-over focus:ring-over' : 'border-ink-300 focus:border-ink-900 focus:ring-ink-900'}`}
       />
       {hasError ? (
-        <p id={errorId} className="mt-1 text-sm text-red-600">
+          <p id={errorId} className="mt-1 text-sm text-over">
           {error}
         </p>
       ) : helperText ? (
-        <p id={helperTextId} className="mt-1 text-sm text-slate-500">
+          <p id={helperTextId} className="mt-1 text-sm text-ink-600">
           {helperText}
         </p>
       ) : null}

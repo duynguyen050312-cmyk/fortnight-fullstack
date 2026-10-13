@@ -12,9 +12,9 @@ type ThreeDButtonProps = {
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: 'bg-gradient-to-b from-primary-600 to-primary-700 shadow-lg shadow-primary-700/40 hover:from-primary-600 hover:to-primary-800 focus-visible:ring-primary-600',
-  secondary: 'bg-gradient-to-b from-success-600 to-success-700 shadow-lg shadow-success-700/40 hover:from-success-600 hover:to-success-700 focus-visible:ring-success-600',
-  danger: 'bg-gradient-to-b from-red-500 to-red-600 shadow-lg shadow-red-700/40 hover:from-red-500 hover:to-red-700 focus-visible:ring-red-600',
+  primary: 'border-ink-900 bg-ink-900 text-surface hover:bg-ink-600 focus-visible:ring-ink-900',
+  secondary: 'border-ink-900 bg-surface text-ink-900 hover:bg-paper focus-visible:ring-ink-900',
+  danger: 'border-over bg-surface text-over hover:bg-over-bg focus-visible:ring-over',
 }
 
 export default function ThreeDButton({
@@ -41,12 +41,12 @@ export default function ThreeDButton({
       onClick={handleClick}
       disabled={unavailable}
       aria-busy={loading || undefined}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 font-semibold transition duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${unavailable ? 'cursor-not-allowed bg-slate-300 text-slate-500 shadow-none' : `text-white active:translate-y-1 active:shadow-sm ${variantClasses[variant]}`}`}
+      className={`inline-flex items-center justify-center gap-2 rounded border px-5 py-3 text-base font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-paper ${unavailable ? 'cursor-not-allowed border-ink-300 bg-ink-300 text-ink-600' : variantClasses[variant]}`}
     >
       {loading && (
         <span
           aria-hidden="true"
-          className="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+          className="size-4 animate-spin rounded-full border-2 border-current/40 border-t-current"
         />
       )}
       {label}

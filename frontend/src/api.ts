@@ -1,4 +1,5 @@
-import type { CheckResult, Profile, Shift, ShiftDraft } from './types'
+import { getLocalToday } from './utils/hours'
+import type { CheckResult, HomeSummary, Profile, Shift, ShiftDraft, VisaTypeOption } from './types'
 
 const tokenStorageKey = 'fortnight-access-token'
 
@@ -47,6 +48,7 @@ async function request<T>(path: string, options: RequestInit = {}, authenticated
 export const login = (email: string, password: string) => request<AuthResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
 export const signup = (email: string, password: string) => request<AuthResponse>('/api/auth/signup', { method: 'POST', body: JSON.stringify({ email, password }) })
 export const logout = () => request<{ message: string }>('/api/auth/logout', { method: 'POST' }, true)
+export const getVisaTypes = () => request<VisaTypeOption[]>('/api/visa-types')
 export const getProfile = () => request<Profile | null>('/api/profile', {}, true)
 export const saveProfile = (profile: Profile) => request<Profile>('/api/profile', { method: 'PUT', body: JSON.stringify(profile) }, true)
 export const getShifts = async () => (await request<Shift[]>('/api/shifts', {}, true)).map(normaliseShift)
@@ -54,3 +56,4 @@ export const createShift = async (draft: ShiftDraft) => normaliseShift(await req
 export const deleteShift = (id: string) => request<{ message: string }>(`/api/shifts/${id}`, { method: 'DELETE' }, true)
 export const clearShifts = () => request<{ message: string; deletedCount: number }>('/api/shifts', { method: 'DELETE' }, true)
 export const checkShift = (draft: ShiftDraft) => request<CheckResult>('/api/shift-check', { method: 'POST', body: JSON.stringify(draft) }, true)
+export const getHomeSummary = () => request<HomeSummary>(`/api/home-summary?today=${getLocalToday()}`, {}, true)
