@@ -8,4 +8,8 @@
   label { @apply block text-xs font-semibold uppercase tracking-wide text-ink-600; }
   button, input, select { font: inherit; }
   ::selection { @apply bg-safe-bg text-ink-900; }
+  html { color-scheme: light; -webkit-tap-highlight-color: transparent; accent-color: theme('colors.ink.900'); }
+  a { @apply text-ink-900; }
+  input::placeholder { @apply text-ink-600 opacity-100; }
+  input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus { -webkit-text-fill-color: theme('colors.ink.900'); box-shadow: 0 0 0 1000px theme('colors.surface') inset; }
 }

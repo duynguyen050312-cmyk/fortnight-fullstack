@@ -22,6 +22,9 @@ export default {
         display: ['32px', { lineHeight: '38px' }],
         'numeral-xl': ['56px', { lineHeight: '56px' }],
       },
+      ringColor: {
+        DEFAULT: '#14171C',
+      },
       gridTemplateColumns: {
         14: 'repeat(14, minmax(0, 1fr))',
       },

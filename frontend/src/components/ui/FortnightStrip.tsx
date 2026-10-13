@@ -20,6 +20,6 @@ export default function FortnightStrip({ windowStart, windowEnd, dailyHours, sta
         <div className="w-full bg-ink-900" style={{ height: `${(day.hours / scaleHours) * 100}%` }} />
       </div>)}
     </div>
-    <p className="mt-1.5 flex justify-between font-mono text-xs leading-4 tracking-tight text-ink-600"><span>{formatWindowDate(windowStart)}</span><span>{formatWindowDate(windowEnd)}</span></p>
+    <p className="mt-1.5 flex justify-between font-mono text-xs leading-4 text-ink-600"><span>{formatWindowDate(windowStart)}</span><span>{formatWindowDate(windowEnd)}</span></p>
   </section>
 }
