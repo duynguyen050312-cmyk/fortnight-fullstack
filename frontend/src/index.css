@@ -7,6 +7,9 @@
   input, select { @apply mt-1 block w-full rounded border border-ink-300 bg-surface px-3 py-3 text-base text-ink-900 outline-none transition focus:border-ink-900 focus:ring-1 focus:ring-ink-900; }
   label { @apply block text-xs font-semibold uppercase tracking-wide text-ink-600; }
   button, input, select { font: inherit; }
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; transition-delay: 0ms !important; }
+  }
   ::selection { @apply bg-safe-bg text-ink-900; }
   html { color-scheme: light; -webkit-tap-highlight-color: transparent; accent-color: theme('colors.ink.900'); }
   a { @apply text-ink-900; }

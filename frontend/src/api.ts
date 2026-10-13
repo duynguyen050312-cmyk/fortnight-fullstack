@@ -1,5 +1,5 @@
 import { getLocalToday } from './utils/hours'
-import type { CheckResult, HomeSummary, Profile, Shift, ShiftDraft, VisaTypeOption } from './types'
+import type { CheckResult, HomeSummary, Profile, Shift, ShiftDraft, StudyBreak, StudyBreakDraft, VisaTypeOption } from './types'
 
 const tokenStorageKey = 'fortnight-access-token'
 
@@ -56,4 +56,10 @@ export const createShift = async (draft: ShiftDraft) => normaliseShift(await req
 export const deleteShift = (id: string) => request<{ message: string }>(`/api/shifts/${id}`, { method: 'DELETE' }, true)
 export const clearShifts = () => request<{ message: string; deletedCount: number }>('/api/shifts', { method: 'DELETE' }, true)
 export const checkShift = (draft: ShiftDraft) => request<CheckResult>('/api/shift-check', { method: 'POST', body: JSON.stringify(draft) }, true)
-export const getHomeSummary = () => request<HomeSummary>(`/api/home-summary?today=${getLocalToday()}`, {}, true)
+export const getBreaks = () => request<StudyBreak[]>('/api/breaks', {}, true)
+export const createBreak = (draft: StudyBreakDraft) => request<StudyBreak>('/api/breaks', { method: 'POST', body: JSON.stringify(draft) }, true)
+export const deleteBreak = (id: string) => request<{ message: string }>(`/api/breaks/${id}`, { method: 'DELETE' }, true)
+export const getHomeSummary = async () => {
+  const summary = await request<HomeSummary>(`/api/home-summary?today=${getLocalToday()}`, {}, true)
+  return { ...summary, recentShifts: summary.recentShifts.map(normaliseShift) }
+}

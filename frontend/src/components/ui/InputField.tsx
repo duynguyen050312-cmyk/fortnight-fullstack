@@ -13,6 +13,7 @@ type InputFieldProps = {
   touched: boolean
   required: boolean
   helperText?: string
+  maxLength?: number
 }
 
 export default function InputField({
@@ -26,6 +27,7 @@ export default function InputField({
   touched,
   required,
   helperText,
+  maxLength,
 }: InputFieldProps) {
   const inputId = `input-${name}`
   const errorId = `${inputId}-error`
@@ -45,6 +47,7 @@ export default function InputField({
         onChange={onChange}
         onBlur={onBlur}
         required={required}
+        maxLength={maxLength}
         aria-invalid={hasError}
         aria-describedby={hasError ? errorId : helperText ? helperTextId : undefined}
         className={`mt-1 block w-full rounded border bg-surface px-3 py-3 text-base text-ink-900 outline-none transition focus:ring-1 ${hasError ? 'border-over focus:border-over focus:ring-over' : 'border-ink-300 focus:border-ink-900 focus:ring-ink-900'}`}

@@ -1,16 +1,51 @@
 import { useNavigate } from 'react-router-dom'
+import AnimatedHours from '../components/ui/AnimatedHours'
+import StudyBreaksSection from '../components/StudyBreaksSection'
 import FortnightStrip from '../components/ui/FortnightStrip'
 import ThreeDButton from '../components/ui/ThreeDButton'
-import type { HomeSummary, UsageStatus } from '../types'
+import type { HomeSummary, StudyBreak, StudyBreakDraft, UsageStatus } from '../types'
 
-type Props = { summary: HomeSummary | null; loadingData: boolean; loadError: string; onLogout: () => Promise<void> }
+type Props = { summary: HomeSummary | null; breaks: StudyBreak[]; onAddBreak: (draft: StudyBreakDraft) => Promise<void>; onDeleteBreak: (id: string) => Promise<void>; loadingData: boolean; loadError: string }
 
 const statusCopy: Record<UsageStatus, string> = { safe: 'You are comfortably within your current limit.', tight: 'You are close to your current limit.', over: 'You are over your current limit.' }
 const statusClasses: Record<UsageStatus, string> = { safe: 'border-safe bg-safe-bg text-safe', tight: 'border-tight bg-tight-bg text-tight', over: 'border-over bg-over-bg text-over' }
 
-export default function HomePage({ summary, loadingData, loadError, onLogout }: Props) {
+function EmptyStripIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 120 32" className="h-8 w-[120px]" fill="none">
+    {Array.from({ length: 14 }, (_, index) => <rect key={index} x={index * 8.5 + 0.5} y="0.5" width="6" height="31" rx="1" className="stroke-ink-300" />)}
+  </svg>
+}
+
+export default function HomePage({ summary, breaks, onAddBreak, onDeleteBreak, loadingData, loadError }: Props) {
   const navigate = useNavigate()
   if (loadingData) return <main className="mx-auto max-w-3xl p-5 sm:p-8"><p className="text-ink-600">Loading your dashboard…</p></main>
   if (!summary) return <main className="mx-auto max-w-3xl p-5 sm:p-8"><section className="border border-ink-300 bg-surface p-5 sm:p-6"><h1 className="text-[22px] font-bold text-ink-900">Your dashboard is not ready</h1><p className="mt-2 text-ink-600">{loadError || 'Complete your profile to see your current fortnight.'}</p><div className="mt-6"><ThreeDButton label="Set up profile" onClick={() => navigate('/profile')} /></div></section></main>
-  return <main className="mx-auto max-w-3xl p-5 sm:p-8"><div className="mb-6 flex items-center justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-600">Fortnight</p><h1 className="mt-1 text-display font-bold text-ink-900">Your hours</h1></div><ThreeDButton label="Log out" variant="secondary" onClick={() => void onLogout()} /></div><section className={`border p-5 sm:p-6 ${statusClasses[summary.status]}`}><p className="text-xs font-semibold uppercase tracking-wide">{summary.status}</p><p className="mt-2 text-base text-ink-900">{summary.unlimited ? 'No fortnightly cap in place for your visa type.' : statusCopy[summary.status]}</p></section><section className="mt-5 border border-ink-300 bg-surface p-5 sm:p-6"><div className="grid gap-5 sm:grid-cols-2"><div><p className="text-xs font-semibold uppercase tracking-wide text-ink-600">Hours used</p><p className="mt-2 font-mono text-numeral-xl font-medium tracking-tight text-ink-900">{summary.currentHours}</p></div><div><p className="text-xs font-semibold uppercase tracking-wide text-ink-600">{summary.unlimited ? 'Fortnightly limit' : 'Hours remaining'}</p>{summary.unlimited ? <p className="mt-2 text-display font-bold text-ink-900">No cap</p> : <p className="mt-2 font-mono text-numeral-xl font-medium tracking-tight text-ink-900">{summary.remainingHours}</p>}{!summary.unlimited && <p className="mt-1 text-sm text-ink-600">of {summary.limitHours} hours</p>}</div></div><div className="mt-6"><FortnightStrip windowStart={summary.windowStart} windowEnd={summary.windowEnd} dailyHours={summary.dailyHours} status={summary.status} /></div></section><div className="mt-5 flex flex-wrap gap-3"><ThreeDButton label="Log a shift" onClick={() => navigate('/log-shifts')} /><ThreeDButton label="Check a shift" variant="secondary" onClick={() => navigate('/shift-check')} /></div><section className="mt-8 border-t border-ink-300 pt-6"><h2 className="text-xs font-semibold uppercase tracking-wide text-ink-600">Recent shifts</h2>{summary.recentShifts.length === 0 ? <p className="mt-3 text-sm text-ink-600">No shifts logged yet.</p> : <ul className="mt-3 space-y-2">{summary.recentShifts.map((shift) => <li key={shift.id} className="flex flex-wrap items-center justify-between gap-3 border border-ink-300 bg-surface px-3 py-3 text-sm"><span className="font-mono tracking-tight text-ink-900">{shift.date} · {shift.startTime}–{shift.endTime}</span><strong className="font-mono tracking-tight text-ink-900">{shift.hours.toFixed(2)} h</strong></li>)}</ul>}</section></main>
+
+  const hasShifts = summary.recentShifts.length > 0
+  const namedEmployers = summary.employerHours.filter((row) => row.employer).length
+  return <main className="mx-auto max-w-3xl p-5 sm:p-8">
+    <h1 className="mb-6 text-display font-bold text-ink-900">Your hours</h1>
+    <section className={`border p-5 motion-safe:animate-rise sm:p-6 ${statusClasses[summary.status]}`}><p className="text-xs font-semibold uppercase tracking-wide">{summary.status}</p><p className="mt-2 text-base text-ink-900">{summary.unlimited ? 'No fortnightly cap in place for your visa type.' : statusCopy[summary.status]}</p>{summary.todayInBreak && <p className="mt-2 text-sm text-ink-600">Today is inside one of your study breaks, so hours worked today are not counted.</p>}</section>
+    <section className="mt-5 border border-ink-300 bg-surface p-5 sm:p-6">
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div><p className="text-xs font-semibold uppercase tracking-wide text-ink-600">Hours used</p><p className="mt-2 font-mono text-numeral-xl font-medium tracking-tight text-ink-900"><AnimatedHours value={summary.currentHours} /></p></div>
+        <div><p className="text-xs font-semibold uppercase tracking-wide text-ink-600">{summary.unlimited ? 'Fortnightly limit' : 'Hours remaining'}</p>{summary.unlimited || summary.remainingHours === null ? <p className="mt-2 text-display font-bold text-ink-900">No cap</p> : <p className="mt-2 font-mono text-numeral-xl font-medium tracking-tight text-ink-900"><AnimatedHours value={summary.remainingHours} /></p>}{!summary.unlimited && <p className="mt-1 text-sm text-ink-600">of {summary.limitHours} hours</p>}</div>
+      </div>
+      {summary.breakHours > 0 && <p className="mt-4 text-sm text-ink-600"><span className="font-mono tracking-tight text-ink-900">{summary.breakHours}</span> hours worked during study breaks in this window are not counted.</p>}
+      <div className="mt-6"><FortnightStrip windowStart={summary.windowStart} windowEnd={summary.windowEnd} dailyHours={summary.dailyHours} status={summary.status} /></div>
+      {namedEmployers > 1 && <div className="mt-6 border-t border-ink-300 pt-5">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-600">Hours by employer</h2>
+        <ul className="mt-3 space-y-1.5 text-sm">{summary.employerHours.map((row) => <li key={row.employer ?? 'none'} className="flex items-baseline justify-between gap-3"><span className={`min-w-0 truncate ${row.employer ? 'text-ink-900' : 'text-ink-600'}`}>{row.employer ?? 'No employer set'}</span><span className="font-mono tracking-tight text-ink-900">{row.hours.toFixed(2)} h</span></li>)}</ul>
+        <p className="mt-3 text-sm leading-5 text-ink-600">{summary.unlimited ? 'Hours are combined across all your employers.' : `Your ${summary.limitHours}-hour limit is a combined total across all employers, not per job.`}</p>
+      </div>}
+    </section>
+    <div className="mt-5 flex flex-wrap gap-3">{hasShifts && <ThreeDButton label="Log a shift" onClick={() => navigate('/log-shifts')} />}<ThreeDButton label="Check a shift" variant="secondary" onClick={() => navigate('/shift-check')} /></div>
+    <section className="mt-8 border-t border-ink-300 pt-6">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-600">Recent shifts</h2>
+      {hasShifts
+        ? <ul className="mt-3 space-y-2">{summary.recentShifts.map((shift) => <li key={shift.id} className="flex flex-wrap items-center justify-between gap-3 border border-ink-300 bg-surface px-3 py-3 text-sm transition-colors duration-150 hover:border-ink-600 hover:bg-paper"><span className="min-w-0"><span className="block font-mono tracking-tight text-ink-900">{shift.date} · {shift.startTime}–{shift.endTime}</span>{shift.employer && <span className="mt-0.5 block truncate text-ink-600">{shift.employer}</span>}</span><strong className="font-mono tracking-tight text-ink-900">{shift.hours.toFixed(2)} h</strong></li>)}</ul>
+        : <div className="mt-3 flex flex-col items-start gap-3 border border-dashed border-ink-300 bg-surface p-5 sm:p-6"><EmptyStripIcon /><p className="text-base font-semibold text-ink-900">No shifts logged yet</p><p className="max-w-md text-sm leading-5 text-ink-600">Add the shifts you have worked in the last 14 days and your window will fill in here.</p><div className="mt-2"><ThreeDButton label="Log a shift" onClick={() => navigate('/log-shifts')} /></div></div>}
+    </section>
+    <StudyBreaksSection breaks={breaks} onAdd={onAddBreak} onDelete={onDeleteBreak} />
+  </main>
 }

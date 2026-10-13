@@ -17,6 +17,9 @@ const WINDOW_WIDTH = BAR_SPACING * 4.5
 const SWEEP_SECONDS = 12
 const MAX_TILT_Y = 0.28
 const MAX_TILT_X = 0.1
+// Content may use at most these fractions of the half-frame from centre (vertical, horizontal).
+const FRAME_FILL = 0.8
+const FRAME_FILL_X = 0.94
 
 function supportsWebGL() {
   try {
@@ -99,6 +102,44 @@ export default function FortnightScene() {
       }
     }
 
+    // Fit the row to the frame width, stretch the bars a little on narrow frames, then pull
+    // back until every corner of the content projects inside the frame, with headroom,
+    // at each extreme of the pointer tilt.
+    const frontZ = (BAR_WIDTH + 0.5) / 2
+    const halfRow = ROW_WIDTH / 2 + BAR_WIDTH / 2
+    const corner = new THREE.Vector3()
+    const tilts = [[-MAX_TILT_X, -MAX_TILT_Y], [-MAX_TILT_X, MAX_TILT_Y], [MAX_TILT_X, -MAX_TILT_Y], [MAX_TILT_X, MAX_TILT_Y]]
+    const contentFits = () => {
+      const { x: rotationX, y: rotationY } = group.rotation
+      let fits = true
+      for (const [tiltX, tiltY] of tilts) {
+        group.rotation.set(tiltX, tiltY, 0)
+        group.updateMatrixWorld()
+        for (const x of [-halfRow, halfRow]) for (const y of [0, windowHeight]) for (const z of [-frontZ, frontZ]) {
+          corner.set(x, y, z).applyMatrix4(group.matrixWorld).project(camera)
+          if (Math.abs(corner.x) > FRAME_FILL_X || Math.abs(corner.y) > FRAME_FILL) fits = false
+        }
+      }
+      group.rotation.set(rotationX, rotationY, 0)
+      group.updateMatrixWorld()
+      return fits
+    }
+    const fitCamera = () => {
+      const tanHalfFov = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
+      const widthDistance = (ROW_WIDTH / 2 + 0.6) / (tanHalfFov * camera.aspect)
+      group.scale.y = THREE.MathUtils.clamp((2 * widthDistance * tanHalfFov * 0.5) / windowHeight, 1, 1.6)
+      const centreY = (windowHeight * group.scale.y) / 2
+      let distance = Math.max(widthDistance, centreY / (tanHalfFov * FRAME_FILL), 6)
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        camera.position.set(0, centreY + distance * 0.12, distance)
+        camera.lookAt(0, centreY, 0)
+        camera.updateProjectionMatrix()
+        camera.updateMatrixWorld()
+        if (contentFits()) break
+        distance *= 1.03
+      }
+    }
+
     const resize = () => {
       const width = container.clientWidth
       const height = container.clientHeight
@@ -107,13 +148,7 @@ export default function FortnightScene() {
       renderer.domElement.style.width = '100%'
       renderer.domElement.style.height = '100%'
       camera.aspect = width / height
-      // Pull the camera back until the whole row fits horizontally.
-      const halfFov = THREE.MathUtils.degToRad(camera.fov / 2)
-      const fitDistance = (ROW_WIDTH / 2 + 1.1) / (Math.tan(halfFov) * camera.aspect)
-      const distance = Math.max(fitDistance, 9)
-      camera.position.set(0, distance * 0.32, distance)
-      camera.lookAt(0, MAX_BAR_HEIGHT * 0.35, 0)
-      camera.updateProjectionMatrix()
+      fitCamera()
       renderer.render(scene, camera)
     }
 
@@ -185,5 +220,5 @@ export default function FortnightScene() {
   }, [])
 
   if (!available) return null
-  return <div ref={containerRef} className="h-[240px] w-full overflow-hidden border border-ink-300 sm:h-[400px]" role="img" aria-label="Fourteen daily work-hour bars with a rolling window sliding across them" />
+  return <div ref={containerRef} className="h-[200px] w-full overflow-hidden sm:h-[280px]" role="img" aria-label="Fourteen daily work-hour bars with a rolling window sliding across them" />
 }

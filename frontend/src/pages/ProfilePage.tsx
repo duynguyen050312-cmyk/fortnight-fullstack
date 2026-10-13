@@ -7,10 +7,10 @@ import ThreeDButton from '../components/ui/ThreeDButton'
 import * as api from '../api'
 import type { Profile } from '../types'
 
-type Props = { profile: Profile; onChange: (profile: Profile) => void; onSave: (profile: Profile) => Promise<void>; onLogout: () => Promise<void>; loadingData: boolean; loadError: string }
+type Props = { profile: Profile; onChange: (profile: Profile) => void; onSave: (profile: Profile) => Promise<void>; loadingData: boolean; loadError: string }
 const flowSteps = ['Profile', 'Shifts', 'Check', 'Result']
 
-export default function ProfilePage({ profile, onChange, onSave, onLogout, loadingData, loadError }: Props) {
+export default function ProfilePage({ profile, onChange, onSave, loadingData, loadError }: Props) {
   const navigate = useNavigate()
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [saving, setSaving] = useState(false)
@@ -25,7 +25,7 @@ export default function ProfilePage({ profile, onChange, onSave, onLogout, loadi
   const save = async () => { if (!valid) return; setSaving(true); setError(''); try { await onSave(profile); navigate('/home') } catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Could not save your profile.') } finally { setSaving(false) } }
 
   return <main className="mx-auto max-w-2xl p-5 sm:p-8">
-    <div className="mb-6 flex items-center justify-between"><StepIndicator steps={flowSteps} currentStep={0} /><ThreeDButton label="Log out" variant="secondary" onClick={() => void onLogout()} /></div>
+    <div className="mb-6"><StepIndicator steps={flowSteps} currentStep={0} /></div>
     <FormSection title="Set up your profile" subtitle="Only the details needed to help you track your limit.">
       <p className="text-sm leading-5 text-ink-600">Fortnight never asks for your visa number, passport number or employer details.</p>
       {loadingData && <p className="mt-4 text-sm text-ink-600">Loading your saved data…</p>}

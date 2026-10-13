@@ -22,6 +22,12 @@ export default {
         display: ['32px', { lineHeight: '38px' }],
         'numeral-xl': ['56px', { lineHeight: '56px' }],
       },
+      keyframes: {
+        rise: { from: { opacity: '0', transform: 'translateY(6px)' }, to: { opacity: '1', transform: 'translateY(0)' } },
+      },
+      animation: {
+        rise: 'rise 400ms ease-out both',
+      },
       ringColor: {
         DEFAULT: '#14171C',
       },

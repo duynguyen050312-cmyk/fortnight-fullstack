@@ -6,7 +6,7 @@ from typing import Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 import crud
 from auth import get_user_from_supabase, require_bearer_token
@@ -22,6 +22,7 @@ VISA_LIMITS: dict[str, Optional[Decimal]] = {
     "Other / not listed": None,
 }
 NO_CAP_MESSAGE = "No fortnightly cap in place for your visa type."
+MAX_LABEL_LENGTH = 60
 
 router = APIRouter(prefix="/api", tags=["Fortnight"])
 
@@ -36,15 +37,39 @@ class ProfileResponse(ProfilePayload):
     pass
 
 
+def blank_to_none(value):
+    """Trim optional free-text labels and store empty ones as NULL."""
+    if isinstance(value, str):
+        value = value.strip()
+        return value or None
+    return value
+
+
 class ShiftPayload(BaseModel):
     date: date
     startTime: time
     endTime: time
+    # Optional, user-chosen label only; no other employer details are collected.
+    employer: Optional[str] = Field(default=None, max_length=MAX_LABEL_LENGTH)
+
+    _trim_employer = field_validator("employer", mode="before")(blank_to_none)
 
 
 class ShiftResponse(ShiftPayload):
     id: str
     hours: float
+
+
+class BreakPayload(BaseModel):
+    label: Optional[str] = Field(default=None, max_length=MAX_LABEL_LENGTH)
+    startDate: date
+    endDate: date
+
+    _trim_label = field_validator("label", mode="before")(blank_to_none)
+
+
+class BreakResponse(BreakPayload):
+    id: str
 
 
 class ShiftCheckResponse(BaseModel):
@@ -59,6 +84,8 @@ class ShiftCheckResponse(BaseModel):
     windowStart: date
     windowEnd: date
     dailyHours: list["DailyHours"]
+    breakHours: float
+    proposedShiftInBreak: bool
 
 
 class VisaTypeOption(BaseModel):
@@ -68,6 +95,12 @@ class VisaTypeOption(BaseModel):
 
 class DailyHours(BaseModel):
     date: date
+    hours: float
+    inBreak: bool = False
+
+
+class EmployerHours(BaseModel):
+    employer: Optional[str]
     hours: float
 
 
@@ -80,6 +113,9 @@ class HomeSummaryResponse(BaseModel):
     status: Literal["safe", "tight", "over"]
     unlimited: bool
     dailyHours: list[DailyHours]
+    breakHours: float
+    employerHours: list[EmployerHours]
+    todayInBreak: bool
     recentShifts: list[ShiftResponse]
 
 
@@ -116,18 +152,45 @@ def get_usage_status(hours: Decimal, limit: Optional[Decimal]) -> Literal["safe"
     return "over"
 
 
-def build_daily_hours(shifts: list[dict], window_start: date, window_end: date) -> list[DailyHours]:
+def find_break(day: date, breaks: list[dict]) -> Optional[dict]:
+    """Return the break period containing this date, if any."""
+    for period in breaks:
+        if date.fromisoformat(period["startDate"]) <= day <= date.fromisoformat(period["endDate"]):
+            return period
+    return None
+
+
+def sum_hours(shifts: list[dict]) -> Decimal:
+    return sum((Decimal(str(shift["hours"])) for shift in shifts), Decimal("0")).quantize(Decimal("0.01"))
+
+
+def build_daily_hours(shifts: list[dict], window_start: date, window_end: date, breaks: list[dict]) -> list[DailyHours]:
     totals = {window_start + timedelta(days=offset): Decimal("0") for offset in range(14)}
     for shift in shifts:
         shift_date = date.fromisoformat(shift["date"])
         if shift_date in totals:
             totals[shift_date] += Decimal(str(shift["hours"]))
-    return [DailyHours(date=day, hours=float(hours.quantize(Decimal("0.01")))) for day, hours in totals.items()]
+    return [
+        DailyHours(date=day, hours=float(hours.quantize(Decimal("0.01"))), inBreak=find_break(day, breaks) is not None)
+        for day, hours in totals.items()
+    ]
 
 
-def build_usage_summary(shifts: list[dict], visa_type: str, window_start: date, window_end: date) -> dict:
-    current_hours = sum((Decimal(str(shift["hours"])) for shift in shifts), Decimal("0"))
-    current_hours = current_hours.quantize(Decimal("0.01"))
+def build_employer_hours(shifts: list[dict]) -> list[EmployerHours]:
+    totals: dict[Optional[str], Decimal] = {}
+    for shift in shifts:
+        employer = shift.get("employer")
+        totals[employer] = totals.get(employer, Decimal("0")) + Decimal(str(shift["hours"]))
+    ordered = sorted(totals.items(), key=lambda item: (-item[1], item[0] is None, item[0] or ""))
+    return [EmployerHours(employer=employer, hours=float(hours.quantize(Decimal("0.01")))) for employer, hours in ordered]
+
+
+def build_usage_summary(shifts: list[dict], visa_type: str, window_start: date, window_end: date, breaks: Optional[list[dict]] = None) -> dict:
+    """Summarise a rolling window. Hours on dates inside a break do not count toward the cap."""
+    breaks = breaks or []
+    counted_shifts = [shift for shift in shifts if find_break(date.fromisoformat(shift["date"]), breaks) is None]
+    break_shifts = [shift for shift in shifts if find_break(date.fromisoformat(shift["date"]), breaks) is not None]
+    current_hours = sum_hours(counted_shifts)
     limit = get_visa_limit(visa_type)
     unlimited = limit is None
     return {
@@ -138,8 +201,24 @@ def build_usage_summary(shifts: list[dict], visa_type: str, window_start: date, 
         "limitHours": None if unlimited else float(limit),
         "status": get_usage_status(current_hours, limit),
         "unlimited": unlimited,
-        "dailyHours": build_daily_hours(shifts, window_start, window_end),
+        "dailyHours": build_daily_hours(shifts, window_start, window_end, breaks),
+        "breakHours": float(sum_hours(break_shifts)),
+        "employerHours": build_employer_hours(counted_shifts),
     }
+
+
+def format_day(value: str) -> str:
+    day = date.fromisoformat(value)
+    return f"{day.day} {day.strftime('%b %Y')}"
+
+
+def break_reason(period: dict, counted_total: float) -> str:
+    name = f'"{period["label"]}"' if period.get("label") else "a study break"
+    return (
+        f"This shift falls inside {name} ({format_day(period['startDate'])} to {format_day(period['endDate'])}), "
+        "so its hours are not counted toward the fortnightly cap: work during official course breaks is not limited. "
+        f"Your counted rolling 14-day total stays at {counted_total} hours."
+    )
 
 
 def require_profile(user_id: str) -> dict:
@@ -192,6 +271,7 @@ async def create_shift(request: ShiftPayload, access_token: str = Depends(requir
         start_time=request.startTime,
         end_time=request.endTime,
         hours=hours,
+        employer=request.employer,
     )
     return ShiftResponse(**shift)
 
@@ -211,6 +291,29 @@ async def clear_shifts(access_token: str = Depends(require_bearer_token)):
     return {"message": "Shifts cleared successfully", "deletedCount": deleted_count}
 
 
+@router.get("/breaks", response_model=list[BreakResponse])
+async def get_breaks(access_token: str = Depends(require_bearer_token)):
+    user_id = await get_user_id_from_token(access_token)
+    return [BreakResponse(**period) for period in crud.get_breaks(user_id)]
+
+
+@router.post("/breaks", response_model=BreakResponse, status_code=status.HTTP_201_CREATED)
+async def create_break(request: BreakPayload, access_token: str = Depends(require_bearer_token)):
+    if request.endDate < request.startDate:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Break end date must be on or after the start date.")
+    user_id = await get_user_id_from_token(access_token)
+    period = crud.create_break(user_id=user_id, label=request.label, start_date=request.startDate, end_date=request.endDate)
+    return BreakResponse(**period)
+
+
+@router.delete("/breaks/{break_id}")
+async def delete_break(break_id: UUID, access_token: str = Depends(require_bearer_token)):
+    user_id = await get_user_id_from_token(access_token)
+    if not crud.delete_break(user_id, break_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Break not found")
+    return {"message": "Break deleted successfully"}
+
+
 @router.get("/home-summary", response_model=HomeSummaryResponse)
 async def get_home_summary(today: Optional[date] = None, access_token: str = Depends(require_bearer_token)):
     # The client sends its local date: the server runs in UTC, which lags Australian dates by up to 11 hours.
@@ -219,7 +322,9 @@ async def get_home_summary(today: Optional[date] = None, access_token: str = Dep
     window_end = today or date.today()
     window_start = window_end - timedelta(days=13)
     shifts = crud.get_shifts_in_window(user_id, window_start, window_end)
-    summary = build_usage_summary(shifts, profile["visaType"], window_start, window_end)
+    breaks = crud.get_breaks_overlapping(user_id, window_start, window_end)
+    summary = build_usage_summary(shifts, profile["visaType"], window_start, window_end, breaks)
+    summary["todayInBreak"] = find_break(window_end, breaks) is not None
     summary["recentShifts"] = [ShiftResponse(**shift) for shift in reversed(crud.get_shifts(user_id)[-5:])]
     return HomeSummaryResponse(**summary)
 
@@ -232,13 +337,18 @@ async def check_shift(request: ShiftPayload, access_token: str = Depends(require
 
     window_start = request.date - timedelta(days=13)
     shifts = crud.get_shifts_in_window(user_id, window_start, request.date)
-    current_summary = build_usage_summary(shifts, profile["visaType"], window_start, request.date)
-    proposed_shift = {"date": request.date.isoformat(), "hours": float(proposed_hours)}
-    projected_summary = build_usage_summary([*shifts, proposed_shift], profile["visaType"], window_start, request.date)
+    breaks = crud.get_breaks_overlapping(user_id, window_start, request.date)
+    current_summary = build_usage_summary(shifts, profile["visaType"], window_start, request.date, breaks)
+    proposed_shift = {"date": request.date.isoformat(), "hours": float(proposed_hours), "employer": request.employer}
+    projected_summary = build_usage_summary([*shifts, proposed_shift], profile["visaType"], window_start, request.date, breaks)
     projected_total = projected_summary["currentHours"]
     limit = get_visa_limit(profile["visaType"])
-    safe = projected_summary["status"] != "over"
-    if limit is None:
+    containing_break = find_break(request.date, breaks)
+    # A shift inside a break adds nothing to the counted total, so it can always be taken.
+    safe = containing_break is not None or projected_summary["status"] != "over"
+    if containing_break is not None:
+        reason = break_reason(containing_break, projected_total)
+    elif limit is None:
         reason = NO_CAP_MESSAGE
     elif safe:
         reason = f"Your projected rolling 14-day total is {projected_total} hours, within the {float(limit)}-hour limit."
@@ -258,4 +368,6 @@ async def check_shift(request: ShiftPayload, access_token: str = Depends(require
         windowStart=window_start,
         windowEnd=request.date,
         dailyHours=projected_summary["dailyHours"],
+        breakHours=projected_summary["breakHours"],
+        proposedShiftInBreak=containing_break is not None,
     )

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import * as api from './api'
-import type { HomeSummary, Profile, Shift, ShiftDraft } from './types'
+import type { HomeSummary, Profile, Shift, ShiftDraft, StudyBreak, StudyBreakDraft } from './types'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import ProfilePage from './pages/ProfilePage'
@@ -9,12 +9,14 @@ import LogShiftsPage from './pages/LogShiftsPage'
 import ShiftCheckPage from './pages/ShiftCheckPage'
 import ResultPage from './pages/ResultPage'
 import HomePage from './pages/HomePage'
+import AppHeader from './components/ui/AppHeader'
 
 const emptyProfile: Profile = { visaType: '', studyPeriodStart: '', studyPeriodEnd: '' }
-const emptyShift: ShiftDraft = { date: '', startTime: '', endTime: '' }
+const emptyShift: ShiftDraft = { date: '', startTime: '', endTime: '', employer: '' }
 
-function ProtectedRoute({ authenticated, children }: { authenticated: boolean; children: React.ReactNode }) {
-  return authenticated ? children : <Navigate to="/login" replace />
+function ProtectedRoute({ authenticated, onLogout, children }: { authenticated: boolean; onLogout: () => Promise<void>; children: React.ReactNode }) {
+  if (!authenticated) return <Navigate to="/login" replace />
+  return <><AppHeader onLogout={onLogout} />{children}</>
 }
 
 export default function App() {
@@ -22,6 +24,7 @@ export default function App() {
   const [profile, setProfile] = useState<Profile>(emptyProfile)
   const [shifts, setShifts] = useState<Shift[]>([])
   const [homeSummary, setHomeSummary] = useState<HomeSummary | null>(null)
+  const [breaks, setBreaks] = useState<StudyBreak[]>([])
   const [workedShiftDraft, setWorkedShiftDraft] = useState<ShiftDraft>(emptyShift)
   const [proposedShift, setProposedShift] = useState<ShiftDraft>(emptyShift)
   const [authenticated, setAuthenticated] = useState(Boolean(api.getAccessToken()))
@@ -34,6 +37,7 @@ export default function App() {
     setProfile(emptyProfile)
     setShifts([])
     setHomeSummary(null)
+    setBreaks([])
     setWorkedShiftDraft(emptyShift)
     setProposedShift(emptyShift)
     setLoadError(message)
@@ -50,9 +54,10 @@ export default function App() {
     setLoadingData(true)
     setLoadError('')
     try {
-      const [savedProfile, savedShifts] = await Promise.all([api.getProfile(), api.getShifts()])
+      const [savedProfile, savedShifts, savedBreaks] = await Promise.all([api.getProfile(), api.getShifts(), api.getBreaks()])
       setProfile(savedProfile ?? emptyProfile)
       setShifts(savedShifts)
+      setBreaks(savedBreaks)
       setHomeSummary(savedProfile ? await api.getHomeSummary() : null)
       return savedProfile
     } catch (error) {
@@ -98,6 +103,18 @@ export default function App() {
     setHomeSummary(await api.getHomeSummary())
   }
 
+  const addBreak = async (draft: StudyBreakDraft) => {
+    const created = await api.createBreak(draft)
+    setBreaks((current) => [...current, created].sort((a, b) => a.startDate.localeCompare(b.startDate)))
+    setHomeSummary(await api.getHomeSummary())
+  }
+
+  const removeBreak = async (id: string) => {
+    await api.deleteBreak(id)
+    setBreaks((current) => current.filter((period) => period.id !== id))
+    setHomeSummary(await api.getHomeSummary())
+  }
+
   const logOut = async () => {
     try {
       await api.logout()
@@ -108,16 +125,16 @@ export default function App() {
     }
   }
 
-  const protectedPage = (page: React.ReactNode) => <ProtectedRoute authenticated={authenticated}>{page}</ProtectedRoute>
+  const protectedPage = (page: React.ReactNode) => <ProtectedRoute authenticated={authenticated} onLogout={logOut}>{page}</ProtectedRoute>
 
   return <Routes>
     <Route path="/" element={<LandingPage />} />
     <Route path="/login" element={authenticated ? <Navigate to={profile.visaType ? '/home' : '/profile'} replace /> : <LoginPage onAuthenticated={completeAuthentication} sessionError={loadError} />} />
-    <Route path="/home" element={protectedPage(<HomePage summary={homeSummary} loadingData={loadingData} loadError={loadError} onLogout={logOut} />)} />
-    <Route path="/profile" element={protectedPage(<ProfilePage profile={profile} onChange={setProfile} onSave={saveCurrentProfile} onLogout={logOut} loadingData={loadingData} loadError={loadError} />)} />
-    <Route path="/log-shifts" element={protectedPage(<LogShiftsPage shifts={shifts} summary={homeSummary} draft={workedShiftDraft} onDraftChange={setWorkedShiftDraft} onAddShift={addShift} onDeleteShift={removeShift} onClearData={clearAllShifts} onLogout={logOut} />)} />
-    <Route path="/shift-check" element={protectedPage(<ShiftCheckPage proposedShift={proposedShift} onComplete={setProposedShift} onCheck={api.checkShift} onLogout={logOut} />)} />
-    <Route path="/result" element={protectedPage(<ResultPage onLogout={logOut} />)} />
+    <Route path="/home" element={protectedPage(<HomePage summary={homeSummary} breaks={breaks} onAddBreak={addBreak} onDeleteBreak={removeBreak} loadingData={loadingData} loadError={loadError} />)} />
+    <Route path="/profile" element={protectedPage(<ProfilePage profile={profile} onChange={setProfile} onSave={saveCurrentProfile} loadingData={loadingData} loadError={loadError} />)} />
+    <Route path="/log-shifts" element={protectedPage(<LogShiftsPage shifts={shifts} summary={homeSummary} draft={workedShiftDraft} onDraftChange={setWorkedShiftDraft} onAddShift={addShift} onDeleteShift={removeShift} onClearData={clearAllShifts} />)} />
+    <Route path="/shift-check" element={protectedPage(<ShiftCheckPage proposedShift={proposedShift} onComplete={setProposedShift} onCheck={api.checkShift} />)} />
+    <Route path="/result" element={protectedPage(<ResultPage />)} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>
 }

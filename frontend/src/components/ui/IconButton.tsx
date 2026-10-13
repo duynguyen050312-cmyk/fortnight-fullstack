@@ -32,7 +32,7 @@ export default function IconButton({
       onClick={handleClick}
       disabled={unavailable}
       aria-busy={loading || undefined}
-      className={`group inline-flex items-center justify-center gap-2 rounded border px-5 py-3 text-base font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-900 focus-visible:ring-offset-2 focus-visible:ring-offset-paper ${unavailable ? 'cursor-not-allowed border-ink-300 bg-ink-300 text-ink-600' : 'border-ink-900 bg-ink-900 text-surface hover:bg-ink-600 active:bg-ink-900'}`}
+      className={`group inline-flex items-center justify-center gap-2 rounded border px-5 py-3 text-base font-medium transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-900 focus-visible:ring-offset-2 focus-visible:ring-offset-paper ${unavailable ? 'cursor-not-allowed border-ink-300 bg-ink-300 text-ink-600' : 'border-ink-900 bg-ink-900 text-surface hover:-translate-y-px hover:shadow-[0_3px_0_theme(colors.ink.300)] active:translate-y-0 active:shadow-none'}`}
     >
       {loading ? (
         <span

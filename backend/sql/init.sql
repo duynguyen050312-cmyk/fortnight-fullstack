@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS public.shifts (
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
     hours NUMERIC(5, 2) NOT NULL,
+    employer TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT shifts_end_after_start
@@ -36,12 +37,36 @@ CREATE TABLE IF NOT EXISTS public.shifts (
 CREATE INDEX IF NOT EXISTS shifts_user_id_shift_date_idx
     ON public.shifts (user_id, shift_date);
 
+-- Optional free-text employer label chosen by the user (added after launch,
+-- so also applied to existing databases).
+ALTER TABLE public.shifts ADD COLUMN IF NOT EXISTS employer TEXT;
+ALTER TABLE public.shifts DROP CONSTRAINT IF EXISTS shifts_employer_length;
+ALTER TABLE public.shifts ADD CONSTRAINT shifts_employer_length
+    CHECK (employer IS NULL OR char_length(employer) <= 60);
+
+-- Official course breaks: hours worked on these dates do not count toward the cap.
+CREATE TABLE IF NOT EXISTS public.breaks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    label TEXT,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT breaks_end_on_or_after_start
+        CHECK (end_date >= start_date)
+);
+
+CREATE INDEX IF NOT EXISTS breaks_user_id_dates_idx
+    ON public.breaks (user_id, start_date, end_date);
+
 -- =====================================================
 -- Row Level Security
 -- =====================================================
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.shifts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.breaks ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: users may access only their own single profile.
 DROP POLICY IF EXISTS "Users can select own profile" ON public.profiles;
@@ -92,5 +117,31 @@ CREATE POLICY "Users can update own shifts"
 DROP POLICY IF EXISTS "Users can delete own shifts" ON public.shifts;
 CREATE POLICY "Users can delete own shifts"
     ON public.shifts
+    FOR DELETE
+    USING (auth.uid() = user_id);
+
+-- Breaks: users may access only their own breaks.
+DROP POLICY IF EXISTS "Users can select own breaks" ON public.breaks;
+CREATE POLICY "Users can select own breaks"
+    ON public.breaks
+    FOR SELECT
+    USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert own breaks" ON public.breaks;
+CREATE POLICY "Users can insert own breaks"
+    ON public.breaks
+    FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update own breaks" ON public.breaks;
+CREATE POLICY "Users can update own breaks"
+    ON public.breaks
+    FOR UPDATE
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can delete own breaks" ON public.breaks;
+CREATE POLICY "Users can delete own breaks"
+    ON public.breaks
     FOR DELETE
     USING (auth.uid() = user_id);
